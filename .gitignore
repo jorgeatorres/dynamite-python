@@ -1,4 +1,13 @@
+<<<<<<< HEAD
 *.pyc
 *.pyo
 *.sublime-workspace
 *.sublime-project
+=======
+*.class
+
+# Package Files #
+*.jar
+*.war
+*.ear
+>>>>>>> 799359db1f3a9eaee88dff4bf2821de6b11c094a
