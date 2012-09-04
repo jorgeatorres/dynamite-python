@@ -5,30 +5,8 @@ import math
 from PySide.QtCore import *
 from PySide.QtGui import *
 
-from integrators import RungeKutta4
-
-
-class DynamitePlot(QObject):
-
-    DEFAULT_SETTINGS = {'line-width': 2.0}
-
-    plotChanged = Signal() 
-
-    def __init__(self, *args, **kwargs):
-        super(DynamitePlot, self).__init__(*args, **kwargs)
-        self.enabled = True
-        self.selected = False
-        self.settings = self.DEFAULT_SETTINGS
-
-    def paint(self, painter, transform):
-        raise NotImplementedError('paint()')
-
-    def setEnabled(self, value=True):
-        self.enabled = value
-        self.plotChanged.emit()
-
-    def getName(self):
-        return 'Unnamed Plot'
+from dynamite.plots import DynamitePlot
+from dynamite.core.integrators import RungeKutta4
 
 
 class OrbitPlot(DynamitePlot):
@@ -39,6 +17,8 @@ class OrbitPlot(DynamitePlot):
         self._initialPoint = point
         self._data = []
 
+        self.priority = 10
+
         self._solve()
 
     def _solve(self):
@@ -46,10 +26,6 @@ class OrbitPlot(DynamitePlot):
         self._data = RungeKutta4.solve(self._system, self._initialPoint.x(), self._initialPoint.y(), 0.0, 400)
 
     def paint(self, painter, transform):
-        pen = painter.pen()
-        pen.setWidth(self.settings['line-width'])
-        painter.setPen(pen)
-
         path = QPainterPath()
 
         ppixel = transform.pointToPixel(self._data[0])
@@ -76,15 +52,13 @@ class SlopeField(DynamitePlot):
         super(SlopeField, self).__init__()
         self._system = system
 
-        self.settings['color'] = Qt.gray
+        self.settings['color'] = Qt.green
         self.settings['density'] = 15.0
+        self.settings['line-width'] = 0.9
+
+        self.priority = 5
 
     def paint(self, painter, transform):
-        pen = QPen()
-        pen.setColor(self.settings['color'])
-        painter.setPen(pen)
-
-
         xstep = transform.width / self.settings['density']
         ystep = transform.height / self.settings['density']
 

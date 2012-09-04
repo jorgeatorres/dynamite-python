@@ -2,6 +2,7 @@
 
 from PySide.QtCore import QPointF
 
+
 class RungeKutta4(object):
 
     @classmethod

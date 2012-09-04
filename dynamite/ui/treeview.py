@@ -1,5 +1,8 @@
 # encoding: utf-8
+
 from PySide.QtCore import *
+from PySide.QtGui import *
+
 
 class TreeNodeKind(object):
     ROOT = u'root'
@@ -19,6 +22,20 @@ class TreeNode(object):
     def add(self, node):
         self._childs.append(node)
         node._parent = self
+
+    def remove(self, node):
+        self._childs.remove(node)
+        node._parent = None
+
+    # def find(self, data):
+    #     if self._data == data:
+    #         return self
+
+    #     for child in self._childs:
+    #         if child._data == data:
+    #             return child
+
+    #     return None
 
     def child(self, row):
         return self._childs[row]
@@ -53,11 +70,15 @@ class PlotTreeModel(QAbstractItemModel):
         self._root = TreeNode(u'Dynamite', TreeNodeKind.ROOT)
 
         # DynamiteView signals
-        dView.plot_added.connect(self._plot_added)
+        dView.plotAdded.connect(self._plotAdded)
+        dView.plotRemoved.connect(self._plotRemoved)
 
-    def _plot_added(self, plot):
+    def _plotAdded(self, plot):
         self._root.add(TreeNode(plot, TreeNodeKind.PLOT))
-        self.reset() # TODO: call only 'dataChanged' or something?
+        self.reset() # TODO: be more efficient here (do not reset the hole the model)
+
+    def _plotRemoved(self, plot):
+        self.reset() # TODO: be more efficient here (do not reset the hole the model)
 
     def headerData(self, section, orientation, role):
         if orientation == Qt.Horizontal and role == Qt.DisplayRole:
@@ -133,3 +154,70 @@ class PlotTreeModel(QAbstractItemModel):
             return Qt.NoItemFlags
 
         return Qt.ItemIsEnabled | Qt.ItemIsSelectable | Qt.ItemIsUserCheckable
+
+    # some particular methods
+    def select(self, indexes):
+        for index in indexes:
+            node = index.internalPointer()
+
+            if node._kind == TreeNodeKind.PLOT:
+                node.data().selected = True
+
+    def deselect(self, indexes):
+        for index in indexes:
+            node = index.internalPointer()
+
+            if node._kind == TreeNodeKind.PLOT:
+                node.data().selected = False
+
+
+class PlotTreeView(QTreeView):
+
+    def __init__(self, dView, *args, **kwargs):
+        super(PlotTreeView, self).__init__(*args, **kwargs)
+        self._view = dView
+
+        self.setMinimumWidth(200)
+
+        self.setModel(PlotTreeModel(dView))
+        self.setSelectionMode(QTreeView.ExtendedSelection)
+        self.setSelectionBehavior(QTreeView.SelectRows)
+        self.selectionModel().selectionChanged.connect(self._selectionChanged)
+
+        self.setContextMenuPolicy(Qt.ActionsContextMenu)
+        self._setupActions()
+
+        self._view.selectionChanged.connect(self._viewSelectionChanged)
+
+    def _setupActions(self):
+        configure = QAction(u'Configure', self)
+        #configure.triggered.connect(self.con)
+        self.addAction(configure)
+
+        # self.style().standardIcon(QStyle.SP_TrashIcon),
+        delete = QAction(u'Delete', self)
+        delete.triggered.connect(self._deleteAction)
+        self.addAction(delete)
+
+    def _deleteAction(self, checked=False):
+        for index in self.selectionModel().selectedIndexes():
+            node = index.internalPointer()
+            if node._kind == TreeNodeKind.PLOT:
+                node.parent().remove(node)
+                self._view.remove(node.data())
+
+    # fired when the selection changes
+    def _selectionChanged(self, selected, deselected):
+        self.model().select(selected.indexes())
+        self.model().deselect(deselected.indexes())
+
+    def _viewSelectionChanged(self, selected, notSelected):
+        if not selected:
+            self.clearSelection()
+            # self.update()
+            # self.selectionModel().setCurrentIndex(QModelIndex(), QItemSelectionModel.Select)
+            # self.update()
+        # selectedIndexes = []
+
+        # for p in selected:
+        #     print repr(self.model().find(p))
