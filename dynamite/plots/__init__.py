@@ -21,6 +21,7 @@ class DynamitePlot(QObject):
         self._priority = 0
         self.enabled = True
         self.settings = dict(self.DEFAULT_SETTINGS)
+        self._formula = None
 
     @property
     def selected(self):
@@ -47,5 +48,5 @@ class DynamitePlot(QObject):
         self.enabled = value
         self.plotChanged.emit()
 
-    def getName(self):
-        return 'Unnamed Plot'
+    def formula(self):
+        return u'(Formula Unavailable)'

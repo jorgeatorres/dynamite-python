@@ -42,8 +42,11 @@ class OrbitPlot(DynamitePlot):
     def initialPoint(self):
         return self._initialPoint
 
-    def getName(self):
-        return '%s orbit through (%0.2lf,%0.2lf),t >= 0' % (self._system.getName(), self._initialPoint.x(), self._initialPoint.y())
+    def __str__(self):
+        return '(x,y) = (%0.2lf, %0.2lf)' % (self._initialPoint.x(), self._initialPoint.y())
+
+    # def formula(self):
+    #     return u'{dx/dt = %s, dy/dt = %s, x0 = %s, y0 = %s}' % (self._system.formula(), )
 
 
 class SlopeField(DynamitePlot):

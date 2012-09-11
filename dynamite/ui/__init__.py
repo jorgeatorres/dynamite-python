@@ -8,7 +8,7 @@ from dynamite.core import ParsedSystem
 from dynamite.view import DynamiteView
 
 from dynamite.ui.dialogs import ViewLimitsDialog, PlotSettingsDialog
-from dynamite.ui.treeview import PlotTreeView
+from dynamite.ui.treeview import *
 from dynamite.ui.eqarea import EquationArea
 
 
@@ -25,12 +25,8 @@ class DynamiteWindow(QMainWindow):
     def _setupActions(self):
         self._actions = {}
 
-        a = QAction('Test', self)
-        a.triggered.connect(self._testAction)
-        self._actions['test'] = a
-
         a = QAction('New', self)
-        a.setShortcut(QKeySequence.New)
+        #a.setShortcut(QKeySequence.New)
         self._actions['new'] = a
 
         a = QAction('Open', self)
@@ -53,6 +49,11 @@ class DynamiteWindow(QMainWindow):
         self._actions['print'] = a
 
         # Plot-related
+        a = QAction('New Equation', self)
+        a.setShortcut(QKeySequence.New)
+        a.triggered.connect(self._newEquation)
+        self._actions['new-equation'] = a
+
         a = QAction('Axes && Grid Settings...', self)
         a.triggered.connect(self._changeAxesSettings)
         self._actions['change-axes-settings'] = a
@@ -125,20 +126,22 @@ class DynamiteWindow(QMainWindow):
 
         self._view = DynamiteView(self)
         self._view.selectionChanged.connect(self._selectionChanged)
-        hbox.addWidget(PlotTreeView(self._view))
+        self._treeView = PlotTreeView(self._view)
+        self._treeView.selectionModel().selectionChanged.connect(self._treeViewSelectionChanged)
+        self._model = self._treeView.model()
+        hbox.addWidget(self._treeView)
 
         vboxWidget = QWidget()
 
         vbox = QVBoxLayout(vboxWidget)
         self._equationArea = EquationArea()
-        self._equationArea.equationDone.connect(self._equationDone)
+        self._equationArea.formulaDone.connect(self._formulaDone)
         vbox.addWidget(self._equationArea)
         vbox.addWidget(self._view)
 
         hbox.addWidget(vboxWidget)
 
         self.setCentralWidget(centralwidget)
-
         # inspector window
         self._inspector = PlotSettingsDialog(self)
         self._inspector.accepted.connect(self._actions['show-inspector'].toggle)
@@ -163,6 +166,8 @@ class DynamiteWindow(QMainWindow):
         fileMenu.addAction(self._actions['print'])
 
         plotMenu = self._menuBar.addMenu(u'&Plots')
+        plotMenu.addAction(self._actions['new-equation'])
+        plotMenu.addSeparator()
         plotMenu.addAction(self._actions['show-inspector'])
         plotMenu.addSeparator()
         plotMenu.addAction(self._actions['change-axes-settings'])
@@ -186,29 +191,74 @@ class DynamiteWindow(QMainWindow):
         toolbar = QToolBar(self)
         toolbar.setFloatable(False)
         self.addToolBar(toolbar)
-
-        toolbar.addAction(self._actions['test'])
         toolbar.addSeparator()
-
-    def _equationDone(self, eq):
-        system = ParsedSystem(eq['dx'], eq['dy'])
-        self._view.add(OrbitPlot(system, QPointF(eq['x0'], eq['y0'])))
 
     def _selectionChanged(self, selected, notSelected):
         self._inspector.setPlots(selected)
 
+    def _formulaDone(self, formula, expression, obj):
+        data = self._treeView.selectionModel().currentIndex().internalPointer()
+
+        if data._kind == TreeNodeKind.OBJECT:
+            self._view.remove(data._data)
+
+        if obj is None:
+            data._data = formula
+        else:
+            # a plot
+            #search = self._treeView.model().search(obj._system)
+
+            # if search is None:
+            #     node = TreeNode(obj, TreeNodeKind.OBJECT)
+            #     data.add(node)
+            #     data._data = obj._system
+            #     data._kind = TreeNodeKind.OBJECT
+            #     self._treeView.model().reset()
+            # else:
+            #     pass
+
+            data._kind = TreeNodeKind.OBJECT
+            data._data = obj
+            self._view.add(obj)
+
+        self._treeView.update()
+
+    def _treeViewSelectionChanged(self, selected, deselected):
+        indexes = self._treeView.selectionModel().selectedIndexes()
+        
+        if len(indexes) == 0:
+            self._equationArea.setFormula(u'')
+            return
+
+        if len(indexes) > 1:
+            self._equationArea.state = EquationArea.State.MULTIPLE
+            return
+
+        data = indexes[0].internalPointer()
+        
+        if data._kind == u'invalid-formula':
+            self._equationArea.state = EquationArea.State.SINGLE
+            self._equationArea.setFormula(data.data())
+        elif data._kind == u'object':
+            self._equationArea.state = EquationArea.State.SINGLE
+            self._equationArea.setFormula(data.data()._formula)
+
+        #self._equationArea.setFormula()
+
+    def showEvent(self, *args, **kwargs):
+        self._newEquation()
+
+        #self._equationArea.setFocus(Qt.OtherFocusReason)
+        return super(DynamiteWindow, self).showEvent(*args, **kwargs)
+
+    #
     # Action callbacks
+    #
+    def _newEquation(self):
+        self._model.addFormula(u'{dx/dt = ?, dy/dt = ?, x_0 = ?, y_0 = ?}')
+
     def _changeCursorMode(self):
         print 'cursor mode'
-
-    def _testAction(self):
-        from dynamite.core.examples import Pendulum2D
-        from dynamite.plots.diffeq import OrbitPlot, SlopeField
-        
-        p2d = Pendulum2D()
-        for i in xrange(0, 5):
-            self._view.add(OrbitPlot(p2d, QPointF(0.5 * i, 0.0)))
-        self._view.add(SlopeField(p2d))
 
     def _showInspector(self):
         inspector = self._inspector

@@ -7,13 +7,13 @@ from PySide.QtGui import *
 class TreeNodeKind(object):
     ROOT = u'root'
     GROUP = u'group'
-    PLOT = u'plot'
-    TEXT = u'text'
+    OBJECT = u'object'
+    INVALID_FORMULA = u'invalid-formula'
 
 
 class TreeNode(object):
 
-    def __init__(self, data, kind=TreeNodeKind.TEXT):
+    def __init__(self, data, kind=TreeNodeKind.OBJECT):
         self._parent = None
         self._data = data
         self._childs = []
@@ -55,8 +55,12 @@ class TreeNode(object):
         return 0
 
     def display(self):
-        if self._kind == TreeNodeKind.PLOT:
-            return self._data.getName()
+        if self._kind == TreeNodeKind.INVALID_FORMULA:
+            return u'(!) %s' % self._data
+        elif self._kind == TreeNodeKind.OBJECT:
+            return str(self._data)
+        # if self._kind == TreeNodeKind.OBJECT:
+        #     return self._data.getName()
         return self.data()
 
     def __repr__(self):
@@ -70,11 +74,21 @@ class PlotTreeModel(QAbstractItemModel):
         self._root = TreeNode(u'Dynamite', TreeNodeKind.ROOT)
 
         # DynamiteView signals
-        dView.plotAdded.connect(self._plotAdded)
-        dView.plotRemoved.connect(self._plotRemoved)
+        # dView.plotAdded.connect(self._plotAdded)
+        # dView.plotRemoved.connect(self._plotRemoved)
+
+    def addFormula(self, text):
+        self._root.add(TreeNode(text, TreeNodeKind.INVALID_FORMULA))
+        self.reset()
+
+    def search(self, obj):
+        for x in self._root._childs:
+            if x._data == obj:
+                return x
+        return None
 
     def _plotAdded(self, plot):
-        self._root.add(TreeNode(plot, TreeNodeKind.PLOT))
+        self._root.add(TreeNode(plot, TreeNodeKind.OBJECT))
         self.reset() # TODO: be more efficient here (do not reset the hole the model)
 
     def _plotRemoved(self, plot):
@@ -94,7 +108,7 @@ class PlotTreeModel(QAbstractItemModel):
         if role == Qt.DisplayRole:
             return node.display()
         elif role == Qt.CheckStateRole:
-            if node._kind == TreeNodeKind.PLOT:
+            if node._kind == TreeNodeKind.OBJECT:
                 plot = node.data()
 
                 if plot.enabled:
@@ -160,15 +174,21 @@ class PlotTreeModel(QAbstractItemModel):
         for index in indexes:
             node = index.internalPointer()
 
-            if node._kind == TreeNodeKind.PLOT:
-                node.data().selected = True
+            if node._kind == TreeNodeKind.OBJECT:
+                if hasattr(node._data, 'selected'):
+                    node.data().selected = True
+
+                    for x in node._childs:
+                        if hasattr(x._data, 'selected'):
+                            x._data.selected = True
 
     def deselect(self, indexes):
         for index in indexes:
             node = index.internalPointer()
 
-            if node._kind == TreeNodeKind.PLOT:
-                node.data().selected = False
+            if node._kind == TreeNodeKind.OBJECT:
+                if hasattr(node._data, 'selected'):
+                    node.data().selected = False
 
 
 class PlotTreeView(QTreeView):
@@ -202,7 +222,7 @@ class PlotTreeView(QTreeView):
     def _deleteAction(self, checked=False):
         for index in self.selectionModel().selectedIndexes():
             node = index.internalPointer()
-            if node._kind == TreeNodeKind.PLOT:
+            if node._kind == TreeNodeKind.OBJECT:
                 node.parent().remove(node)
                 self._view.remove(node.data())
 
